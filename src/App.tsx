@@ -377,7 +377,7 @@ export default function App() {
                         <motion.div 
                           className="absolute inset-0 w-40 h-40 border-t-4 border-primary rounded-full shadow-[0_0_20px_rgba(var(--primary),0.3)]"
                           animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          transition={{ duration: 0.6, repeat: Infinity, ease: "linear" }}
                         />
                         <div className="absolute inset-0 flex items-center justify-center">
                           <Cpu className="w-16 h-16 text-primary animate-pulse" />
@@ -387,8 +387,8 @@ export default function App() {
                         <h3 className="text-2xl font-bold uppercase tracking-[0.3em] text-primary">Scanning</h3>
                         <div className="space-y-1">
                           <p className="text-[10px] font-mono text-muted-foreground animate-pulse">EXTRACTING TEMPORAL FEATURES...</p>
-                          <p className="text-[10px] font-mono text-muted-foreground animate-pulse delay-75">MAPPING BIOMETRIC VECTORS...</p>
-                          <p className="text-[10px] font-mono text-muted-foreground animate-pulse delay-150">NEURAL PATTERN MATCHING...</p>
+                          <p className="text-[10px] font-mono text-muted-foreground animate-pulse">MAPPING BIOMETRIC VECTORS...</p>
+                          <p className="text-[10px] font-mono text-muted-foreground animate-pulse">NEURAL PATTERN MATCHING...</p>
                         </div>
                       </div>
                     </motion.div>
@@ -550,7 +550,7 @@ export default function App() {
                           key={i}
                           className="w-3 h-3 bg-primary rounded-full"
                           animate={{ y: [0, -10, 0] }}
-                          transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.1 }}
+                          transition={{ duration: 0.4, repeat: Infinity, delay: i * 0.05 }}
                         />
                       ))}
                     </div>
