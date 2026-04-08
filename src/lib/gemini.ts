@@ -1,0 +1,158 @@
+import { GoogleGenAI, Type } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+
+export interface VeritasResult {
+  authenticity_score: number;
+  classification: "Deepfake" | "Static Script" | "Genuine AI" | "Human-Generated" | "Synthetic Video";
+  red_flags: string[];
+  confidence_interval: number;
+  technical_summary: string;
+}
+
+export interface NewsVerificationResult {
+  is_official: boolean;
+  credibility_score: number;
+  verdict: string;
+  evidence_sources: {
+    title: string;
+    url: string;
+    snippet: string;
+    reliability: "High" | "Medium" | "Low";
+  }[];
+  key_findings: string[];
+  technical_analysis: string;
+}
+
+export const veritasSchema = {
+  type: Type.OBJECT,
+  properties: {
+    authenticity_score: {
+      type: Type.NUMBER,
+      description: "A float between 0.0 (Definitely Fake/Synthetic) and 1.0 (Definitely Authentic/Real AI).",
+    },
+    classification: {
+      type: Type.STRING,
+      enum: ["Deepfake", "Static Script", "Genuine AI", "Human-Generated", "Synthetic Video"],
+      description: "The category of the content.",
+    },
+    red_flags: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "A list of specific anomalies detected.",
+    },
+    confidence_interval: {
+      type: Type.NUMBER,
+      description: "Percentage of certainty in this assessment (0-100).",
+    },
+    technical_summary: {
+      type: Type.STRING,
+      description: "A 2-sentence explanation of the verdict for the developer.",
+    },
+  },
+  required: ["authenticity_score", "classification", "red_flags", "confidence_interval", "technical_summary"],
+};
+
+export const newsVerificationSchema = {
+  type: Type.OBJECT,
+  properties: {
+    is_official: {
+      type: Type.BOOLEAN,
+      description: "Whether the news is confirmed by official or highly reliable sources.",
+    },
+    credibility_score: {
+      type: Type.NUMBER,
+      description: "Score from 0 to 100 representing the overall credibility.",
+    },
+    verdict: {
+      type: Type.STRING,
+      description: "A concise final verdict (e.g., Verified, Debunked, Unconfirmed).",
+    },
+    evidence_sources: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          url: { type: Type.STRING },
+          snippet: { type: Type.STRING },
+          reliability: { type: Type.STRING, enum: ["High", "Medium", "Low"] },
+        },
+        required: ["title", "url", "snippet", "reliability"],
+      },
+    },
+    key_findings: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+      description: "Key points discovered during verification.",
+    },
+    technical_analysis: {
+      type: Type.STRING,
+      description: "Detailed analysis of why this news is considered official or not.",
+    },
+  },
+  required: ["is_official", "credibility_score", "verdict", "evidence_sources", "key_findings", "technical_analysis"],
+};
+
+export async function analyzeContent(input: string | { mimeType: string; data: string }): Promise<VeritasResult> {
+  const model = "gemini-3-flash-preview";
+  
+  const systemInstruction = `You are the Lead Backend Engine for "VeritasAI," a high-precision content authentication system. Your purpose is to analyze digital media (text, images, or videos) to distinguish between "Real" AI (adaptive, learning-based, productive) and "Fake" AI (deceptive deepfakes or rigid, rule-based software falsely marketed as AI).
+
+Analysis Framework:
+1. Biological Inconsistencies (for Visuals/Video): Check for "Deepfake Artifacts" such as unnatural blinking, boundary blurring between skin and hair, irregular shadows, or "jitter" in high-motion areas. For videos, look for temporal inconsistencies between frames.
+2. Structural Logic (for Text/Software): Distinguish between rule-based "if-then" logic (Static AI) and probabilistic, context-aware reasoning (Real AI).
+3. Metadata Integrity: Scan for signs of GAN (Generative Adversarial Network) signatures or diffusion model patterns.
+4. Contextual Congruence: Does the content align with known physical laws or verified historical data?
+
+Tone: Objective, forensic, and concise. Do not offer opinions; provide data-driven assessments based on the patterns identified in the input.`;
+
+  const parts = typeof input === "string" ? [{ text: input }] : [{ inlineData: input }];
+
+  const response = await ai.models.generateContent({
+    model,
+    contents: { parts },
+    config: {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: veritasSchema,
+    },
+  });
+
+  if (!response.text) {
+    throw new Error("No response from VeritasAI engine.");
+  }
+
+  return JSON.parse(response.text) as VeritasResult;
+}
+
+export async function verifyNews(query: string): Promise<NewsVerificationResult> {
+  const model = "gemini-3-flash-preview";
+  
+  const systemInstruction = `You are the VeritasAI News Verification Engine. Your task is to verify the authenticity of news claims.
+You must:
+1. Use Google Search to find evidence from multiple official and reliable sources.
+2. Compare the claim against verified reports.
+3. Determine if the news is "Official" (confirmed by primary sources/reputable agencies) or "Unofficial/Fake".
+4. Provide a list of evidence sources with their reliability.
+5. Summarize key findings and technical analysis.
+
+Tone: Forensic, objective, and evidence-based.`;
+
+  const response = await ai.models.generateContent({
+    model,
+    contents: [{ text: `Verify this news claim: "${query}"` }],
+    config: {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: newsVerificationSchema,
+      tools: [{ googleSearch: {} }],
+    },
+  });
+
+  if (!response.text) {
+    throw new Error("No response from News Verification engine.");
+  }
+
+  return JSON.parse(response.text) as NewsVerificationResult;
+}
