@@ -1,6 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.SACH_AI || "" });
+const apiKey = process.env.GEMINI_API_KEY || process.env.SACH_AI;
+if (!apiKey) {
+  console.warn("SACH AI: No API key detected. Please configure GEMINI_API_KEY or SACH_AI in the Secrets panel.");
+}
+const ai = new GoogleGenAI({ apiKey: apiKey || "" });
 
 export interface VeritasResult {
   authenticity_score: number;
@@ -95,8 +99,8 @@ export const newsVerificationSchema = {
 };
 
 export async function analyzeContent(input: string | { mimeType: string; data: string }): Promise<VeritasResult> {
-  // Use gemini-1.5-flash as primary for faster analysis
-  const model = "gemini-1.5-flash";
+  // Use gemini-3-flash-preview as primary for high-precision analysis
+  const model = "gemini-3-flash-preview";
   
   const systemInstruction = `You are the Lead Backend Engine for "SACH AI," a high-precision content authentication system. Your purpose is to analyze digital media (text, images, or videos) to distinguish between "Real" AI (adaptive, learning-based, productive) and "Fake" AI (deceptive deepfakes or rigid, rule-based software falsely marketed as AI).
 
@@ -128,14 +132,19 @@ Tone: Objective, forensic, and concise. Do not offer opinions; provide data-driv
     return JSON.parse(response.text) as VeritasResult;
   } catch (error) {
     console.error("Primary Engine Error, engaging SACH_AI Fallback:", error);
+    // If it's an auth error, propagate it
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("API_KEY") || msg.includes("403") || msg.includes("401")) {
+      throw new Error("SACH AI Authentication Failed: Please verify your API Key in the Secrets panel.");
+    }
     return sachAiForensicFallback(input);
   }
 }
 
 async function sachAiForensicFallback(input: string | { mimeType: string; data: string }): Promise<VeritasResult> {
-  // SACH_AI Fallback logic
+  // SACH_AI Fallback logic using the latest stable flash model
   try {
-    const fallbackModel = "gemini-3-flash-preview";
+    const fallbackModel = "gemini-3.1-flash-lite-preview";
     const parts = typeof input === "string" ? [{ text: input }] : [{ inlineData: input }];
     
     const response = await ai.models.generateContent({
@@ -162,13 +171,13 @@ async function sachAiForensicFallback(input: string | { mimeType: string; data: 
     classification: "Human-Generated",
     red_flags: ["API Connection Interrupted", "Heuristic Analysis Engaged"],
     confidence_interval: 50,
-    technical_summary: "Primary and Fallback engines are offline. This is a heuristic assessment from SACH_AI local safety protocols."
+    technical_summary: "Primary and Fallback engines are offline. This is a heuristic assessment from SACH_AI local safety protocols. Please check your internet connection or API configuration."
   };
 }
 
 export async function verifyNews(query: string): Promise<NewsVerificationResult> {
-  // Use gemini-1.5-flash as primary for news verification for better speed and search integration stability
-  const model = "gemini-1.5-flash";
+  // Use gemini-3-flash-preview for news verification with search grounding
+  const model = "gemini-3-flash-preview";
   
   const systemInstruction = `You are the SACH AI News Verification Engine. Your task is to verify the authenticity of news claims with extreme speed and precision.
 You must:
@@ -199,15 +208,20 @@ Tone: Forensic, objective, and evidence-based.`;
     return JSON.parse(response.text) as NewsVerificationResult;
   } catch (error) {
     console.error("Primary News Engine Error, engaging SACH_AI Fallback:", error);
+    // If it's an auth error, propagate it
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("API_KEY") || msg.includes("403") || msg.includes("401")) {
+      throw new Error("SACH AI Authentication Failed: Please verify your API Key in the Secrets panel.");
+    }
     return sachAiNewsFallback(query);
   }
 }
 
 async function sachAiNewsFallback(query: string): Promise<NewsVerificationResult> {
   try {
-    // Fallback uses gemini-3-flash-preview but WITHOUT search if search was the failure point
+    // Fallback uses gemini-3.1-flash-lite-preview WITHOUT search if search was the failure point
     // This provides a "knowledge-based" assessment if live search is failing
-    const fallbackModel = "gemini-3-flash-preview";
+    const fallbackModel = "gemini-3.1-flash-lite-preview";
     const response = await ai.models.generateContent({
       model: fallbackModel,
       contents: [{ text: `Based on your internal knowledge base, verify this news claim: "${query}"` }],
@@ -233,6 +247,6 @@ async function sachAiNewsFallback(query: string): Promise<NewsVerificationResult
     verdict: "Unconfirmed",
     evidence_sources: [],
     key_findings: ["Verification servers are experiencing high latency.", "Live cross-referencing is temporarily restricted."],
-    technical_analysis: "The SACH_AI News Verification Engine is currently operating in restricted mode. While we cannot confirm this via live search, our heuristic analysis suggests caution. Please verify with official government or news portals."
+    technical_analysis: "The SACH_AI News Verification Engine is currently operating in restricted mode. This usually happens when the API key is missing or the search quota is exceeded. Please ensure your API key is correctly configured in the Secrets panel."
   };
 }
